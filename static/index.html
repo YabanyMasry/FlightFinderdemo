@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FlightFinder</title>
+<style>
+  :root {
+    --bg: #0f1226; --panel: #1a1f3a; --panel2: #232a4d; --line: #2f3866;
+    --text: #e8ebff; --muted: #99a0c8; --accent: #5b8cff; --accent2: #36d6a0;
+    --gold: #ffd166; --danger: #ff6b81;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font: 15px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    background: radial-gradient(1200px 600px at 70% -10%, #1c2452 0%, var(--bg) 60%);
+    color: var(--text); min-height: 100vh;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 32px 20px 64px; }
+  h1 { margin: 0 0 4px; font-size: 28px; letter-spacing: .3px; }
+  h1 .plane { color: var(--accent); }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
+  form { display: grid; grid-template-columns: repeat(12, 1fr); gap: 14px; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field.col6 { grid-column: span 6; } .field.col4 { grid-column: span 4; }
+  .field.col3 { grid-column: span 3; } .field.col12 { grid-column: span 12; }
+  label { font-size: 12.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+  input, select {
+    background: var(--panel2); border: 1px solid var(--line); color: var(--text);
+    border-radius: 9px; padding: 10px 12px; font-size: 15px; outline: none; width: 100%;
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+  .row-inline { display: flex; align-items: center; gap: 8px; }
+  .row-inline input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); }
+  .actions { grid-column: span 12; display: flex; gap: 12px; align-items: center; margin-top: 4px; flex-wrap: wrap; }
+  button.go {
+    background: linear-gradient(135deg, var(--accent), #7aa2ff); color: #06122e;
+    border: none; border-radius: 10px; padding: 12px 22px; font-weight: 700; font-size: 15px;
+    cursor: pointer; transition: transform .05s ease, filter .15s ease;
+  }
+  button.go:hover { filter: brightness(1.07); } button.go:active { transform: translateY(1px); }
+  button.go:disabled { opacity: .55; cursor: progress; }
+  .hint { color: var(--muted); font-size: 13px; }
+
+  /* --- autocomplete --- */
+  .ac { position: relative; }
+  .ac-menu {
+    position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; right: 0;
+    background: var(--panel2); border: 1px solid var(--line); border-radius: 10px;
+    max-height: 280px; overflow-y: auto; display: none;
+    box-shadow: 0 14px 40px rgba(0,0,0,.45);
+  }
+  .ac-item {
+    padding: 9px 12px; cursor: pointer; display: flex; justify-content: space-between;
+    align-items: baseline; gap: 10px; border-bottom: 1px solid rgba(255,255,255,.04);
+  }
+  .ac-item:last-child { border-bottom: none; }
+  .ac-item.active, .ac-item:hover { background: var(--panel); }
+  .ac-item .left { display: flex; gap: 9px; align-items: baseline; min-width: 0; }
+  .ac-item .code {
+    color: var(--accent); font-weight: 800; font-variant-numeric: tabular-nums;
+    background: rgba(91,140,255,.12); border-radius: 6px; padding: 1px 7px; font-size: 13px;
+  }
+  .ac-item .city { font-weight: 600; } .ac-item .nm { color: var(--muted); font-size: 12.5px; }
+  .ac-item .country { color: var(--muted); font-size: 12px; white-space: nowrap; }
+
+  /* --- chips --- */
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; min-height: 4px; }
+  .chip {
+    background: var(--panel2); border: 1px solid var(--line); border-radius: 999px;
+    padding: 6px 8px 6px 11px; display: flex; align-items: center; gap: 9px; font-size: 14px;
+  }
+  .chip b { color: var(--accent); font-variant-numeric: tabular-nums; }
+  .chip .x {
+    background: rgba(255,255,255,.06); border: none; color: var(--muted); cursor: pointer;
+    width: 20px; height: 20px; border-radius: 50%; font-size: 14px; line-height: 1; padding: 0;
+  }
+  .chip .x:hover { background: rgba(255,107,129,.18); color: var(--danger); }
+
+  #status { margin: 22px 0 12px; min-height: 22px; }
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+  .badge.mock { background: #3a2f0e; color: var(--gold); border: 1px solid #6b5512; }
+  .badge.amadeus { background: #0e2f24; color: var(--accent2); border: 1px solid #14624a; }
+  .summary { color: var(--muted); margin-left: 10px; }
+  .funnel { display: flex; gap: 10px; margin: 8px 0 18px; flex-wrap: wrap; }
+  .stat { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
+  .stat b { font-size: 20px; display: block; } .stat span { color: var(--muted); font-size: 12px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+  th, td { text-align: left; padding: 11px 12px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .5px; }
+  tr.cheapest { background: linear-gradient(90deg, rgba(54,214,160,.14), transparent); }
+  td.price { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .tag { font-size: 11px; font-weight: 800; color: #06241a; background: var(--accent2);
+         padding: 2px 8px; border-radius: 999px; margin-left: 8px; }
+  .route { font-weight: 600; } .muted { color: var(--muted); }
+  .err { color: var(--danger); font-weight: 600; }
+  .spinner { width: 16px; height: 16px; border: 2px solid var(--line); border-top-color: var(--accent);
+             border-radius: 50%; display: inline-block; animation: spin .7s linear infinite; vertical-align: -3px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1><span class="plane">✈</span> FlightFinder</h1>
+  <p class="sub">Globally cheapest flight from one origin across many destinations × dates — via a two-phase funnel.</p>
+
+  <div class="card">
+    <form id="form" autocomplete="off">
+      <div class="field col6 ac">
+        <label for="origin-input">Departure (one city / airport)</label>
+        <input id="origin-input" placeholder="Type a city, e.g. London…">
+        <div id="origin-menu" class="ac-menu"></div>
+      </div>
+      <div class="field col6 ac">
+        <label for="dest-input">Destinations — type to add (blank = discover anywhere)</label>
+        <input id="dest-input" placeholder="Type a city and pick to add a chip…">
+        <div id="dest-menu" class="ac-menu"></div>
+        <div id="dest-chips" class="chips"></div>
+      </div>
+
+      <div class="field col3">
+        <label for="earliest">Earliest departure</label>
+        <input id="earliest" type="date" value="2026-08-01">
+      </div>
+      <div class="field col3">
+        <label for="latest">Latest departure</label>
+        <input id="latest" type="date" value="2026-08-20">
+      </div>
+      <div class="field col3">
+        <label for="min_stay">Min stay (nights)</label>
+        <input id="min_stay" type="number" min="0" value="4">
+      </div>
+      <div class="field col3">
+        <label for="max_stay">Max stay (nights)</label>
+        <input id="max_stay" type="number" min="0" value="10">
+      </div>
+
+      <div class="field col3">
+        <label for="provider">Provider</label>
+        <select id="provider" disabled>
+          <option value="mock" selected>Mock (rich demo data)</option>
+        </select>
+      </div>
+      <div class="field col3">
+        <label for="adults">Adults</label>
+        <input id="adults" type="number" min="1" max="9" value="1">
+      </div>
+      <div class="field col3">
+        <label for="top_n">Verify top-N</label>
+        <input id="top_n" type="number" min="1" max="50" value="15">
+      </div>
+      <div class="field col3">
+        <label for="pairs">Date pairs / candidate</label>
+        <input id="pairs" type="number" min="1" max="10" value="1">
+      </div>
+
+      <div class="field col12 row-inline">
+        <input id="non_stop" type="checkbox"><label for="non_stop" style="text-transform:none">Non-stop flights only</label>
+      </div>
+
+      <div class="actions">
+        <button id="go" class="go" type="submit">Search cheapest</button>
+        <span class="hint">Using rich mock data for demonstration.</span>
+      </div>
+    </form>
+  </div>
+
+  <div id="status"></div>
+  <div id="funnel" class="funnel" hidden></div>
+  <div id="results"></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const state = { origin: null, dests: [] };
+
+function fmtMoney(v, ccy) {
+  return new Intl.NumberFormat(undefined, { style: 'currency', currency: ccy || 'EUR' }).format(v);
+}
+
+async function fetchLocations(q) {
+  if (!q || !q.trim()) return [];
+  try {
+    const r = await fetch('/api/locations?limit=8&q=' + encodeURIComponent(q.trim()));
+    return r.ok ? await r.json() : [];
+  } catch { return []; }
+}
+
+// Reusable typeahead bound to an input + dropdown menu.
+function makeAutocomplete(input, menu, onPick) {
+  let items = [], active = -1, timer;
+  const close = () => { menu.style.display = 'none'; menu.innerHTML = ''; items = []; active = -1; };
+  const render = () => {
+    if (!items.length) { close(); return; }
+    menu.innerHTML = items.map((a, i) => `
+      <div class="ac-item ${i === active ? 'active' : ''}" data-i="${i}">
+        <span class="left"><span class="code">${a.iata}</span>
+          <span class="city">${a.city}</span><span class="nm">${a.name}</span></span>
+        <span class="country">${a.country}</span>
+      </div>`).join('');
+    menu.style.display = 'block';
+    [...menu.children].forEach(el => {
+      el.addEventListener('mousedown', e => { e.preventDefault(); pick(+el.dataset.i); });
+    });
+  };
+  const pick = i => { const a = items[i]; if (a) { onPick(a); } close(); };
+
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    const q = input.value;
+    timer = setTimeout(async () => { items = await fetchLocations(q); active = -1; render(); }, 150);
+  });
+  input.addEventListener('keydown', e => {
+    if (menu.style.display !== 'block') return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); active = Math.min(active + 1, items.length - 1); render(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); active = Math.max(active - 1, 0); render(); }
+    else if (e.key === 'Enter') { if (active >= 0) { e.preventDefault(); pick(active); } }
+    else if (e.key === 'Escape') { close(); }
+  });
+  input.addEventListener('blur', () => setTimeout(close, 120));
+  return { close };
+}
+
+// --- origin (single) ---
+makeAutocomplete($('origin-input'), $('origin-menu'), a => {
+  state.origin = { iata: a.iata, city: a.city };
+  $('origin-input').value = `${a.city} (${a.iata})`;
+});
+$('origin-input').addEventListener('input', () => { state.origin = null; }); // typing invalidates pick
+
+// --- destinations (multi -> chips) ---
+makeAutocomplete($('dest-input'), $('dest-menu'), a => {
+  if (!state.dests.some(d => d.iata === a.iata)) state.dests.push({ iata: a.iata, city: a.city });
+  $('dest-input').value = '';
+  renderChips();
+});
+function renderChips() {
+  $('dest-chips').innerHTML = state.dests.map((d, i) => `
+    <span class="chip"><b>${d.iata}</b> ${d.city}
+      <button type="button" class="x" data-i="${i}" title="Remove">×</button></span>`).join('');
+  $('dest-chips').querySelectorAll('button').forEach(b =>
+    b.addEventListener('click', () => { state.dests.splice(+b.dataset.i, 1); renderChips(); }));
+}
+
+// Prefill a sensible example (London -> Barcelona/Rome/Lisbon).
+(async function seedDefaults() {
+  const lon = (await fetchLocations('LON')).find(a => a.iata === 'LON');
+  if (lon) { state.origin = { iata: 'LON', city: lon.city }; $('origin-input').value = 'London (LON)'; }
+  for (const code of ['BCN', 'ROM', 'LIS']) {
+    const a = (await fetchLocations(code)).find(x => x.iata === code);
+    if (a) state.dests.push({ iata: code, city: a.city });
+  }
+  renderChips();
+})();
+
+$('form').addEventListener('submit', async e => {
+  e.preventDefault();
+  if (!state.origin) {
+    $('status').innerHTML = '<span class="err">✗ Pick a departure city from the dropdown.</span>';
+    $('origin-input').focus();
+    return;
+  }
+  const btn = $('go');
+  const body = {
+    origin: state.origin.iata,
+    destinations: state.dests.map(d => d.iata).join(','),
+    earliest: $('earliest').value,
+    latest: $('latest').value,
+    min_stay: +$('min_stay').value,
+    max_stay: +$('max_stay').value,
+    adults: +$('adults').value,
+    non_stop: $('non_stop').checked,
+    top_n: +$('top_n').value,
+    pairs_per_candidate: +$('pairs').value,
+    provider: $('provider').value,
+  };
+
+  btn.disabled = true;
+  $('funnel').hidden = true;
+  $('results').innerHTML = '';
+  $('status').innerHTML = '<span class="spinner"></span> Scanning the search space…';
+
+  try {
+    const res = await fetch('/api/search', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    render(data);
+  } catch (err) {
+    $('status').innerHTML = '<span class="err">✗ ' + err.message + '</span>';
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+function render(data) {
+  const badges = {
+    mock: '<span class="badge mock">MOCK DEMO DATA</span>',
+    travelpayouts: '<span class="badge amadeus">TRAVELPAYOUTS (CACHED)</span>',
+    amadeus: '<span class="badge amadeus">AMADEUS LIVE</span>',
+  };
+  const badge = badges[data.provider] || data.provider;
+  const dest = data.destinations.length ? data.destinations.join(', ') : 'anywhere';
+  $('status').innerHTML = badge + `<span class="summary">${data.origins.join(', ')} → ${dest}</span>`;
+
+  const f = $('funnel');
+  f.hidden = false;
+  f.innerHTML = `
+    <div class="stat"><b>${data.candidate_count}</b><span>Phase 1 candidates scanned</span></div>
+    <div class="stat"><b>${data.verified_count}</b><span>Phase 2 verified itineraries</span></div>`;
+
+  if (!data.itineraries.length) {
+    $('results').innerHTML = '<p class="muted">No verified itineraries. ' +
+      'In Amadeus test mode the sandbox often has no data for a given route/date — try mock mode or different inputs.</p>';
+    return;
+  }
+
+  const rows = data.itineraries.map(it => `
+    <tr class="${it.cheapest ? 'cheapest' : ''}">
+      <td>${it.rank}</td>
+      <td class="price">${fmtMoney(it.price, it.currency)}${it.cheapest ? '<span class="tag">CHEAPEST</span>' : ''}</td>
+      <td class="route">${it.origin} → ${it.destination}</td>
+      <td>${it.departure_date} <span class="muted">→</span> ${it.return_date || '<span class="muted">one-way</span>'}</td>
+      <td>${it.stay_nights != null ? it.stay_nights + 'n' : '—'}</td>
+      <td>${it.carrier || '—'}</td>
+    </tr>`).join('');
+
+  $('results').innerHTML = `
+    <table>
+      <thead><tr><th>#</th><th>Price</th><th>Route</th><th>Dates</th><th>Stay</th><th>Carrier</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+</script>
+</body>
+</html>
