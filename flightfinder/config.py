@@ -39,5 +39,5 @@ def load_settings() -> Settings:
             "TRAVELPAYOUTS_BASE_URL", "https://api.travelpayouts.com").rstrip("/"),
         request_delay=float(os.getenv("FF_REQUEST_DELAY", "0.25")),
         cache_ttl_hours=int(os.getenv("FF_CACHE_TTL_HOURS", "3")),
-        cache_path=os.getenv("FF_CACHE_PATH", "cache.sqlite"),
+        cache_path=os.getenv("FF_CACHE_PATH", "/tmp/cache.sqlite" if os.getenv("VERCEL") else "cache.sqlite"),
     )
